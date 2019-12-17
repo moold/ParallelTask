@@ -173,12 +173,10 @@ class Run(object):
 			self._sge()
 
 	def rerun(self):
-		# Here we can analysis log file to check the reason of unfinished jobs, and then decided how to rerun unfinished jobs.
-		if self.job_type != 'local':
-			vfs = re.split(r'(\d+)', self.vf)
-			self.vf = str(int(int(vfs[-2]) * 1.5)) + vfs[-1] #most unfinished jobs were caused by Memory in SGE system. TODO: should avoid larger the total memory of computer-node
-			self.option = self._getoption()
-		# self.check()
+		# if self.job_type != 'local':
+		# 	vfs = re.split(r'(\d+)', self.vf)
+		# 	self.vf = str(int(int(vfs[-2]) * 1.5)) + vfs[-1] #TODO fix
+		# 	self.option = self._getoption()
 		self.start()
 
 	def check(self):
@@ -277,6 +275,15 @@ class Run(object):
 			Run.RUNNINGTASK['local'].remove(subid)
 
 	def _getoption(self):
+		if self.sge_options in ['None', 'False', '0', ''] or not self.sge_options:
+			if self.job_type == 'sge':
+				self.sge_options = '-l vf={vf} -pe smp {cpu} -S {bash} -w n'
+			elif self.job_type == 'slurm':
+				self.sge_options = '--cpus-per-task={cpu} --mem-per-cpu={vf}'
+			elif self.job_type == 'pbs' or self.job_type == 'torque':
+				self.sge_options = '-l nodes=1:ppn={cpu}'
+			elif self.job_type == 'lsf':
+				self.sge_options = '-n {cpu}'
 		if self.job_type == 'slurm' and '--mem-per-cpu' in self.sge_options:
 			self.vf = parse_num_unit(self.vf)/1000000/int(self.cpu) + 1
 		return self.sge_options.format(cpu=self.cpu, vf=self.vf, bash=self.bash)

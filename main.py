@@ -65,16 +65,23 @@ def main(args):
 	if not task.check():
 		task.set_subtasks()
 		task.set_run(max_pa_jobs = args[0].maxjob , bash = '/bin/bash', job_type = args[0].jobtype, \
-			sge_options = args[0].clusteroption, vf = '3G', cpu = 1)
+			sge_options = args[0].clusteroption, interval = args[0].interval, vf = '3G', cpu = 1)
+		total_tasks = len(task.run.unfinished_tasks)
 		task.run.start()
-		if task.run.check():
+		while (not task.run.check()):
+			if len(task.run.unfinished_tasks) == total_tasks or not args[0].rerun:
+				log.error('%s failed: please check the following logs:' % (tasktag))
+				for subtask in task.run.unfinished_tasks:
+					log.error(subtask + '.e')
+				sys.exit(1)
+			else:
+				log.info(str(len(task.run.unfinished_tasks)) + ' subtasks failed,' 
+				' and rerun with the '+ str(args[0].rerun) + ' time')
+				task.run.rerun()
+				args[0].rerun -= 1
+		else:
 			task.set_task_done()
 			log.info('%s done' % (tasktag))
-		else:
-			log.error('%s failed: please check the following logs:' % (tasktag))
-			for subtask in task.run.unfinished_tasks:
-				log.error(subtask + '.e')
-			sys.exit(1)
 	else:
 		log.info('skip step: %s' % (tasktag))
 	log.info('%s finished' % (tasktag))
