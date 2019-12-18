@@ -4,6 +4,12 @@ A super simple and lightweight parallel task engine using drmaa
 ## USUAGE
 The doc. and API examples are in `main.py`, use `python main.py -h` for details.
 
+The default cluster_option is listed below, which also can be set manually:
+* sge    `-l vf={vf} -pe smp {cpu} -S {bash} -w n`
+* pbs    `-l nodes=1:ppn={cpu}`
+* slurm  `--cpus-per-task={cpu} --mem-per-cpu={vf}`
+* lsf    `-n {cpu}`
+
 ## INSTALL
 
 * **Configure drmaa for SGE**

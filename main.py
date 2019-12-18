@@ -101,8 +101,8 @@ exmples:
 			choices = ['local', 'sge', 'pbs', 'slurm', 'lsf'],
 			help = 'set the type (%(choices)s) for the submission and control of subtasks.')
 	parser.add_argument('-c','--clusteroption', metavar = 'STR', nargs='*',
-			help = 'a template to define the resource requirements for each subtask,' 
-			' which will pass to DRMAA as the nativeSpecification field.')
+			help = 'a template to define the resource requirements for each subtask,'
+			' which will pass to DRMAA as the nativeSpecification field.', default = 'auto')
 	parser.add_argument('-i','--interval',metavar = 'INT',type = int,default = 30,
 			help = 'set the interval time of checking status or submiting.')
 	parser.add_argument ('-l','--lines',metavar = 'INT',type = int,default = 1,

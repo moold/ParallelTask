@@ -275,7 +275,7 @@ class Run(object):
 			Run.RUNNINGTASK['local'].remove(subid)
 
 	def _getoption(self):
-		if self.sge_options in ['None', 'False', '0', ''] or not self.sge_options:
+		if self.sge_options in ['None', 'False', '0', '', 'auto'] or not self.sge_options:
 			if self.job_type == 'sge':
 				self.sge_options = '-l vf={vf} -pe smp {cpu} -S {bash} -w n'
 			elif self.job_type == 'slurm':
