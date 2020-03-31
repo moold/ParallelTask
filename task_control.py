@@ -116,10 +116,18 @@ class Task(object):
 		log.info('analysis tasks done')
 
 	def set_subtasks(self, job_prefix = None, maxfile = 300):
+		def get_time_command():
+			if which('time'):
+				return'time '
+			elif which('/usr/bin/time'):
+				return "/usr/bin/time -p "
+			return ''
+
 		d = os.path.abspath(self.path[-1]) + '.work/'
 		subtask_file = job_prefix + '.sh' if job_prefix else self.prefix + '.sh'
 		task_count = len(self.tasks)
 		split = 1 if task_count > maxfile else 0
+		time = get_time_command() 
 		for i in range(task_count):
 			if split:
 				subtask_dir = self.prefix + '{:0>{}}/'.format(split/maxfile, len(str(task_count/maxfile))) + self.prefix + '{:0>{}}'.format(i, len(str(task_count)))
@@ -135,7 +143,7 @@ class Task(object):
 						'hostname' + '\n' + \
 						'cd ' + d + subtask_dir + '\n'
 				for task in self.tasks[i]:
-					subtask += 'time ' + task + '\n'
+					subtask += time + task + '\n'
 				subtask += 'touch ' + d + subtask_dir + '/' + subtask_file + '.done\n'
 				with open(d + subtask_dir + '/' + subtask_file, 'w') as OUT:
 					print >>OUT, subtask
