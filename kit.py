@@ -1,9 +1,16 @@
 #!/usr/bin/env python
-import os, sys
+from __future__ import print_function
+
+import os
 import logging
 
-if sys.version_info[0] != 2:
-	raise Exception("Must be using Python 2")
+import sys 
+if sys.version_info[0] == 2:
+    PYTHON_VERSION = 2 
+elif sys.version_info[0] == 3:
+    PYTHON_VERSION = 3 
+else:
+    raise Exception("Unknown Python version")
 
 __all__ = ['plog', 'pmkdir', 'which']
 

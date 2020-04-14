@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 
 import sys
 import os
@@ -146,7 +147,7 @@ class Task(object):
 					subtask += time + task + '\n'
 				subtask += 'touch ' + d + subtask_dir + '/' + subtask_file + '.done\n'
 				with open(d + subtask_dir + '/' + subtask_file, 'w') as OUT:
-					print >>OUT, subtask
+					print(subtask, file=OUT)
 					os.chmod(d + subtask_dir + '/' + subtask_file, 0o744)
 			self.subtasks.append(d + subtask_dir + '/' + subtask_file)
 
@@ -241,7 +242,7 @@ class Run(object):
 					break
 		time.sleep(5)
 		self.drmaa.deleteJobTemplate(jt)
- 		self.drmaa.exit()
+		self.drmaa.exit()
 
 	@property
 	def _check_running(self):
@@ -265,8 +266,8 @@ class Run(object):
 		for i in range(len(self.unfinished_tasks)):
 			newpid = os.fork() 
 			if newpid == 0:
-				os.popen('sh ' + self.unfinished_tasks[i] + ' > ' + self.unfinished_tasks[i] + '.o ' + '2> ' + self.unfinished_tasks[i] + '.e ')
-				sys.exit(0)
+				os.system('sh ' + self.unfinished_tasks[i] + ' > ' + self.unfinished_tasks[i] + '.o ' + '2> ' + self.unfinished_tasks[i] + '.e ')
+				os._exit(0)
 			else:
 				subids.append(newpid)
 				Run.RUNNINGTASK['local'].append(newpid)
