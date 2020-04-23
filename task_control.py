@@ -283,6 +283,16 @@ class Run(object):
 				time.sleep(0.5)
 			Run.RUNNINGTASK['local'].remove(subid)
 
+	def _set_lsf_mem(self):
+		unit = 'M'
+		unit_cfg_fpath = os.getenv('LSF_ENVDIR') + "/lsf.conf"
+		if os.path.exists(unit_cfg_fpath):
+			with open(unit_cfg_fpath) as IN:
+				g = re.search(r'LSF_UNIT_FOR_LIMITS\s*=\s*(\S+)\s*', IN.read(), re.I)
+				if g:
+					unit = g.group(1)
+		return parse_num_unit(self.vf) / parse_num_unit("1%s" % (unit))
+
 	def _getoption(self):
 		if self.sge_options in ['None', 'False', '0', '', 'auto'] or not self.sge_options:
 			if self.job_type == 'sge':
@@ -290,9 +300,11 @@ class Run(object):
 			elif self.job_type == 'slurm':
 				self.sge_options = '--cpus-per-task={cpu} --mem-per-cpu={vf}'
 			elif self.job_type == 'pbs' or self.job_type == 'torque':
-				self.sge_options = '-l nodes=1:ppn={cpu}'
+				self.sge_options = '-l nodes=1:ppn={cpu}:mem={vf}'
 			elif self.job_type == 'lsf':
-				self.sge_options = '-n {cpu}'
+				self.sge_options = '-n {cpu} -R rusage[mem={vf}]'
 		if self.job_type == 'slurm' and '--mem-per-cpu' in self.sge_options:
-			self.vf = parse_num_unit(self.vf)/1000000/int(self.cpu) + 1
+			self.vf = int(parse_num_unit(self.vf, 1024)/1000000/int(self.cpu)) + 1
+		if self.job_type == 'lsf' and 'vf' in self.sge_options:
+			self.vf = int(self._set_lsf_mem())
 		return self.sge_options.format(cpu=self.cpu, vf=self.vf, bash=self.bash)
