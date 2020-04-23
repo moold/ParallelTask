@@ -6,9 +6,9 @@ The doc. and API examples are in `main.py`, use `python main.py -h` for details.
 
 The default cluster_option is listed below, which also can be set manually:
 * sge    `-l vf={vf} -pe smp {cpu} -S {bash} -w n`
-* pbs    `-l nodes=1:ppn={cpu}`
+* pbs    `-l nodes=1:ppn={cpu}:mem={vf}`
 * slurm  `--cpus-per-task={cpu} --mem-per-cpu={vf}`
-* lsf    `-n {cpu}`
+* lsf    `-n {cpu} -R rusage[mem={vf}]`
 
 ## INSTALL
 
