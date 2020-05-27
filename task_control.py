@@ -131,7 +131,8 @@ class Task(object):
 		time = get_time_command() 
 		for i in range(task_count):
 			if split:
-				subtask_dir = self.prefix + '{:0>{}}/'.format(split/maxfile, len(str(task_count/maxfile))) + self.prefix + '{:0>{}}'.format(i, len(str(task_count)))
+				subtask_dir = self.prefix + '{:0>{}}/'.format(int(split/maxfile), len(str(int(task_count/maxfile)))) + \
+					self.prefix + '{:0>{}}'.format(i, len(str(task_count)))
 				split += 1
 			else:
 				subtask_dir = self.prefix + '{:0>{}}'.format(i, len(str(task_count)))
