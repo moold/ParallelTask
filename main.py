@@ -100,9 +100,9 @@ exmples:
 	parser.add_argument('-t','--jobtype',metavar = 'STR',default = 'local',
 			choices = ['local', 'sge', 'pbs', 'slurm', 'lsf'],
 			help = 'set the type (%(choices)s) for the submission and control of subtasks.')
-	parser.add_argument('-c','--clusteroption', metavar = 'STR', nargs='*',
+	parser.add_argument('-c','--clusteroption', metavar = 'STR',default = 'auto',
 			help = 'a template to define the resource requirements for each subtask,'
-			' which will pass to DRMAA as the nativeSpecification field.', default = 'auto')
+			' which will pass to DRMAA as the nativeSpecification field.')
 	parser.add_argument('-i','--interval',metavar = 'INT',type = int,default = 30,
 			help = 'set the interval time of checking status or submiting.')
 	parser.add_argument ('-l','--lines',metavar = 'INT',type = int,default = 1,
