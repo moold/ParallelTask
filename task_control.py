@@ -75,6 +75,10 @@ class Task(object):
 							paramters = lines[i].split("=")
 							lines[i] = paramters[0] + '=' + os.path.abspath(paramters[1]) if \
 								paramters[1] and len(paramters) == 2 else lines[i]
+						elif re.search(r'>',lines[i]):
+							paramters = lines[i].split(">")
+							lines[i] = paramters[0] + '>' + os.path.abspath(paramters[1]) if \
+								paramters[1] and len(paramters) == 2 else lines[i]
 						else:
 							lines[i] = os.path.abspath(lines[i])
 				self.tasks.append(" ".join(lines))
