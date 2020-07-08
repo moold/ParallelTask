@@ -198,7 +198,7 @@ class Run(object):
 		for task in self.tasks:
 			if not os.path.exists(task + '.done'):
 				self.unfinished_tasks.append(task)
-		if len(self.unfinished_tasks) < 5: # Avoid delays in generating done files
+		if self.unfinished_tasks and len(self.unfinished_tasks) < 5: # Avoid delays in generating done files
 			time.sleep(5)
 			for task in list(self.unfinished_tasks):
 				if os.path.exists(task + '.done'):
