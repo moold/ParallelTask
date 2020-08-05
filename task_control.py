@@ -257,7 +257,7 @@ class Run(object):
 	@property
 	def _check_running(self):
 		runningJop = 0
-		pjobs = Run.RUNNINGTASK['sge']
+		pjobs = Run.RUNNINGTASK['sge'][:]
 		for jobid in pjobs:
 			if self.drmaa.jobStatus(jobid) not in [drmaa.JobState.UNDETERMINED, \
 				drmaa.JobState.DONE, drmaa.JobState.FAILED]:
