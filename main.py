@@ -75,8 +75,8 @@ def main(args):
 					log.error(subtask + '.e')
 				sys.exit(1)
 			else:
-				log.info(str(len(task.run.unfinished_tasks)) + ' subtasks failed,' 
-				' and rerun with the '+ str(args[0].rerun) + ' time')
+				log.info(str(len(task.run.unfinished_tasks)) + ' subtask(s) failed,' 
+				' and rerun for the '+ str(args[0].rerun) + ' time')
 				task.run.rerun()
 				args[0].rerun -= 1
 		else:
