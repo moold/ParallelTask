@@ -115,10 +115,10 @@ class Task(object):
 			tasks.append(task)
 
 		else:
-			log.error('incorrect allocated task group')
+			log.error('Incorrect allocated task group')
 
 		self.tasks = tasks
-		log.info('analysis tasks done')
+		# log.info('analysis tasks done')
 
 	def set_subtasks(self, job_prefix = None, maxfile = 300):
 		def get_time_command():
@@ -145,8 +145,8 @@ class Task(object):
 			if not os.path.exists(subtask_finish_lable):
 				pmkdir(d + subtask_dir)
 				subtask = '#!' + self.bash + '\n' + \
-						'set -xve' + '\n' + \
-						'hostname' + '\n' + \
+						'set -xve\n' + \
+						'hostname\n' + \
 						'cd ' + d + subtask_dir + '\n'
 				for task in self.tasks[i]:
 					subtask += time + task + '\n'
@@ -178,7 +178,7 @@ class Run(object):
 		self.check()
 		
 	def start(self):
-		log.info('total jobs: ' + str(len(self.unfinished_tasks)))
+		log.info('Total jobs: ' + str(len(self.unfinished_tasks)))
 		if self.job_type == 'local':
 			self._local()
 		else:
@@ -240,7 +240,7 @@ class Run(object):
 				jt.workingDirectory = os.path.dirname(task)
 				jobid = self.drmaa.runJob(jt)
 				Run.RUNNINGTASK['sge'].append(jobid)
-				log.info('Throw jobID:[' + jobid + '] jobCmd:['  + task + '] in the ' + self.job_type + '_cycle.')
+				log.info('Submit jobID:[' + jobid + '] jobCmd:['  + task + '] in the ' + self.job_type + '_cycle.')
 				j += 1
 			else:
 				time.sleep(self.interval)
@@ -281,7 +281,7 @@ class Run(object):
 			else:
 				subids.append(newpid)
 				Run.RUNNINGTASK['local'].append(newpid)
-				log.info('Throw jobID:[' + str(newpid) + '] jobCmd:['  + self.unfinished_tasks[i] + '] in the local_cycle.')
+				log.info('Submit jobID:[' + str(newpid) + '] jobCmd:['  + self.unfinished_tasks[i] + '] in the local_cycle.')
 				if i >= self.max_pa_jobs - 1:
 					os.wait()
 			time.sleep(0.5)
