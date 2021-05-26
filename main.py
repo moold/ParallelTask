@@ -65,7 +65,7 @@ def main(args):
 	if not task.check():
 		task.set_subtasks()
 		task.set_run(max_pa_jobs = args[0].maxjob , bash = '/bin/bash', job_type = args[0].jobtype, \
-			sge_options = args[0].clusteroption, interval = args[0].interval, vf = '3G', cpu = 1)
+			sge_options = args[0].clusteroption, interval = args[0].interval, vf = args[0].memory, cpu = args[0].cpu)
 		total_tasks = len(task.run.unfinished_tasks)
 		task.run.start()
 		while (not task.run.check()):
@@ -107,6 +107,10 @@ exmples:
 			help = 'set the interval time of checking status or submiting.')
 	parser.add_argument ('-l','--lines',metavar = 'INT',type = int,default = 1,
 			help = 'set the number of lines to form a subtask.')
+	parser.add_argument('-p','--cpu', metavar = 'INT', type = int, default = 1, 
+			help = 'set the required CPU for each subtask.')
+	parser.add_argument('-M','--memory', metavar = 'STR', type = str, default = '3G', 
+			help = 'set the required memory for each subtask.')
 	parser.add_argument('-m','--maxjob',metavar = 'INT',type = int,default = 30, 
 			help = 'set the maximum number of subtasks to run in parallel.' )
 	parser.add_argument('-r','--rerun', metavar = 'INT', type = int, default = 3, 
