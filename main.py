@@ -3,7 +3,6 @@
 import sys
 import os
 import re
-import signal
 import shutil
 import argparse
 
@@ -13,7 +12,7 @@ from kit import *
 
 log = ''
 
-class HelpFormatter(argparse.RawDescriptionHelpFormatter,argparse.ArgumentDefaultsHelpFormatter):
+class HelpFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
 	pass
 
 def set_tasktag(task):
@@ -48,10 +47,7 @@ def main(args):
 	global log
 	log_file = 'pid' + str(os.getpid()) + '.' + args[0].log
 	log = plog(log_file)
-	from task_control import Task, Run
-
-	signal.signal(signal.SIGINT, Run.kill)
-	signal.signal(signal.SIGTERM, Run.kill)
+	from task_control import Task
 
 	log.info('start...')
 	log.info('logfile: ' + log_file)
@@ -61,26 +57,28 @@ def main(args):
 	tasktag = set_tasktag(task)
 	workdir = set_workdir(args)
 
-	task = Task(task, prefix = args[0].jobprefix, convertpath = args[0].convertpath, group = args[0].lines)
-	if not task.check():
-		task.set_subtasks()
-		task.set_run(max_pa_jobs = args[0].maxjob , bash = '/bin/bash', job_type = args[0].jobtype, \
-			sge_options = args[0].clusteroption, interval = args[0].interval, vf = args[0].memory, cpu = args[0].cpu)
-		total_tasks = len(task.run.unfinished_tasks)
+	task = Task(task, job_prefix=args[0].job_prefix, convert_path=False if args[0].disable_convert_path else True, \
+		shell=args[0].shell, group=args[0].lines)
+	if not task.is_finished():
+		task.set_run(max_parallel_job=args[0].maxjob, job_type=args[0].job_type, \
+			interval_time=args[0].interval, cpu=args[0].cpu, mem=args[0].memory, \
+			use_drmaa=args[0].use_drmaa, cfg_file=args[0].config, submit=args[0].submit,\
+			kill=args[0].kill, check_alive=args[0].check_alive, job_id_regex=args[0].job_id_regex )
+		total_jobs = len(task.run.unfinished_jobs)
 		task.run.start()
-		while (not task.run.check()):
-			if len(task.run.unfinished_tasks) == total_tasks or not args[0].rerun:
+		while (not task.run.is_finished()):
+			if len(task.run.unfinished_jobs) == total_jobs or not args[0].rerun:
 				log.error('%s failed: please check the following logs:' % (tasktag))
-				for subtask in task.run.unfinished_tasks:
-					log.error(subtask + '.e')
+				for job in task.run.unfinished_jobs:
+					log.error(job.err)
 				sys.exit(1)
 			else:
-				log.info(str(len(task.run.unfinished_tasks)) + ' subtask(s) failed,' 
+				log.info(str(len(task.run.unfinished_jobs)) + ' subtask(s) failed,' 
 				' and rerun for the '+ str(args[0].rerun) + ' time')
 				task.run.rerun()
 				args[0].rerun -= 1
 		else:
-			task.set_task_done()
+			task.set_task_finished()
 			log.info('%s done' % (tasktag))
 	else:
 		log.info('skip step: %s' % (tasktag))
@@ -94,34 +92,54 @@ parallelTask:
 	A simple and lightweight parallel task engine
 
 exmples: 
-	%(prog)s test.sh
+	%(prog)s [options] test.sh
 '''
 	)
-	parser.add_argument('-t','--jobtype',metavar = 'STR',default = 'local',
+	parser.add_argument('-t','--job_type',metavar = 'STR',default = 'local',
 			choices = ['local', 'sge', 'pbs', 'slurm', 'lsf'],
-			help = 'set the type (%(choices)s) for the submission and control of subtasks.')
-	parser.add_argument('-c','--clusteroption', metavar = 'STR',default = 'auto',
-			help = 'a template to define the resource requirements for each subtask,'
-			' which will pass to DRMAA as the nativeSpecification field.')
+			help = 'the type (%(choices)s) for the submission and control of jobs.')
+	parser.add_argument('-d', '--use_drmaa', action = 'store_true',
+			help = 'use drmaa to submit and control jobs.')
 	parser.add_argument('-i','--interval',metavar = 'INT',type = int,default = 30,
-			help = 'set the interval time of checking status or submiting.')
+			help = 'the interval time of checking status or submiting.')
 	parser.add_argument ('-l','--lines',metavar = 'INT',type = int,default = 1,
-			help = 'set the number of lines to form a subtask.')
+			help = 'the number of lines to form a subtask.')
 	parser.add_argument('-p','--cpu', metavar = 'INT', type = int, default = 1, 
-			help = 'set the required CPU for each subtask.')
+			help = 'the required CPU for each subtask.')
 	parser.add_argument('-M','--memory', metavar = 'STR', type = str, default = '3G', 
-			help = 'set the required memory for each subtask.')
+			help = 'the required memory for each subtask.')
 	parser.add_argument('-m','--maxjob',metavar = 'INT',type = int,default = 30, 
-			help = 'set the maximum number of subtasks to run in parallel.' )
+			help = 'the maximum number of jobs to run in parallel.' )
 	parser.add_argument('-r','--rerun', metavar = 'INT', type = int, default = 3, 
-			help = 'rerun unfinished subtasks with the maximum RERUN of cycles.')
-	parser.add_argument('--convertpath',action = 'store_false',
-			help = 'convert local path to absolute path for subtasks.')
+			help = 'rerun unfinished subtasks with the maximum INT of cycles.')
+	parser.add_argument('--disable_convert_path', action = 'store_true',
+			help = 'don\'t convert local path to absolute path for subtasks.')
 	parser.add_argument('--rewrite',action = 'store_false',
 			help = 'overwrite existed work directory.')
-	parser.add_argument('--jobprefix',metavar = 'STR',default = 'subtask',
-			help = 'set the prefix tag for subtasks.')
+	parser.add_argument('--job_prefix',metavar = 'STR',default = 'subtask',
+			help = 'the prefix tag for subtasks.')
 	parser.add_argument ('--log',metavar = 'FILE',type = str, default = 'log.info',
 		help = 'log file')
+
+	parser.add_argument('--shell', metavar = 'STR', type = str, default = '/bin/sh', 
+			help = 'the shell command language.')
+	parser.add_argument('--submit', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
+			help = 'command to submit a job, overwrite --config, read from --config by default.')
+	parser.add_argument('--kill', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
+			help = 'command to kill a job, overwrite --config, read from --config by default.')
+	parser.add_argument('--check_alive', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
+			help = 'command to check a job status, overwrite --config, read from --config by default.')
+	parser.add_argument('--job_id_regex', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
+			help = 'the job-id-regex to parse the job id from the out of --submit, overwrite --config, read from --config by default.')
+	parser.add_argument('--config', metavar = 'FILE', type = str, default = SCRIPT_PATH + '/cluster.cfg', 
+			help = 'the config file to load --submit,--kill,--check_alive,--job_id_regex value.')	
 	args = parser.parse_known_args()
+	if 'submit' not in args[0]:
+		args[0].submit = None
+	if 'kill' not in args[0]:
+		args[0].kill = None
+	if 'check_alive' not in args[0]:
+		args[0].check_alive = None
+	if 'job_id_regex' not in args[0]:
+		args[0].job_id_regex = None
 	main(args)

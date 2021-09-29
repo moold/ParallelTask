@@ -7,58 +7,50 @@ import re
 import time
 import psutil
 import signal
+import subprocess
 from kit import *
 
 __all__ = ['Task', 'Run']
 
-drmaa = None
 log = plog()
+
+class Job(object):
+
+	def __init__(self, path):
+		self.path = os.path.abspath(path)
+		self.id = None
+		self.cmd = None
+		self.out = self.path + '.o'
+		self.err = self.path + '.e'
+
+	def is_finished(self):
+		return True if os.path.exists(self.path + '.done') else False
+
+	def set_task_finished(self):
+		cmd = 'touch ' + self.path + '.done'
+		ret = os.system(cmd)
+		if ret != 0:
+			log.critical("Command '%s' returned non-zero exit status %d." % (cmd, ret))
+
 class Task(object):
 
-	def __init__(self, path, group = 1, max_subtask = 300, prefix = 'job', bash = '/bin/bash', convertpath = True): # need add output input
-		self.tasks = []
-		self.subtasks = []
-		self.path = [path]
-		self.group = group
-		self.max_subtask = max_subtask
-		self.prefix = prefix
-		self.bash = bash
-		self.run = ''
-		self._check(convertpath)
-		self._subtasks()
+	def __init__(self, path, group=1, max_subtask=300, job_prefix='subjob', dir_prefix='work', shell='/bin/sh', convert_path=True):
+		self.job = Job(path)
+		self.shell = shell
+		self.run = None
+		if not self.is_finished():
+			self.jobs = self._write_subtasks(self._init_subtasks(self._read_task(convert_path), group), \
+				job_prefix, dir_prefix, shell, max_subtask)
 
-	def add_task(self, path, prefix = None, group = None, max_subtask = 0, bash = None, convertpath = True):
-		self.tasks = []
-		self.path.append(path)
-		if group:
-			self.group = group
-		if max_subtask:
-			self.max_subtask = max_subtask
-		if prefix:
-			self.prefix = prefix
-		if bash:
-			self.bash = bash
-		self._check(convertpath)
-		self._subtasks()
-
-	def check(self, path = False):
-		if path:
-			return True if os.path.exists(path + '.done') else False
-		else:
-			return True if os.path.exists(self.path[-1] + '.done') else False
-
-	def set_task_done(self):
-		for path in self.path:
-			os.system('touch ' + path + '.done')
-
-	def _check(self, convertpath = True):
-		with open(self.path[-1]) as IN:
+	def _read_task(self, convert_path):
+		tasks = []
+		with open(self.job.path) as IN:
 			for line in IN:
 				line = line.strip()
 				if not line or line[0].startswith('#'):
 					continue
 				lines = line.split()
-				if convertpath:
+				if convert_path:
 					for i in range(len(lines)):
 						if not re.search(r'\/',lines[i]):
 							if os.path.exists(lines[i]) or lines[i - 1] == '>' or lines[i - 1] == '1>' or lines[i - 1] == '2>':
@@ -81,240 +73,437 @@ class Task(object):
 								paramters[1] and len(paramters) == 2 else lines[i]
 						else:
 							lines[i] = os.path.abspath(lines[i])
-				self.tasks.append(" ".join(lines))
+				tasks.append(" ".join(lines))
+		return tasks
 
-	def _subtasks(self):
-		tasks = []
-		if isinstance(self.group, int):
+	def _init_subtasks(self, tasks, group):
+		group_tasks = []
+		if isinstance(group, int):
 			task = []
-			for i in range(len(self.tasks)):
-				if task and i % self.group == 0:
-					tasks.append(task)
+			for i in range(len(tasks)):
+				if task and i % group == 0:
+					group_tasks.append(task)
 					task = []
-				task.append(self.tasks[i])
-			tasks.append(task)
-		elif isinstance(self.group, list):
+				task.append(tasks[i])
+			group_tasks.append(task)
+		elif isinstance(group, list):
 			j = 0
 			last_i = 0
 			task = []
-			for i in range(len(self.tasks)):
-				if i - last_i == self.group[j]:
-					tasks.append(task)
+			for i in range(len(tasks)):
+				if i - last_i == group[j]:
+					group_tasks.append(task)
 					task = []
 					last_i = i
 					j += 1
-				task.append(self.tasks[i])
-			tasks.append(task)
-		elif isinstance(self.group, str):
-			task = []
-			for i in range(len(self.tasks)):
-				if task and i == self.group:
-					tasks.append(task)
-					task = []
-				task.append(self.tasks[i])
-			tasks.append(task)
-
+				task.append(tasks[i])
+			group_tasks.append(task)
 		else:
-			log.error('Incorrect allocated task group')
+			log.error('Incorrect allocated task group:%s' % str(group))
+		return group_tasks
 
-		self.tasks = tasks
-		# log.info('analysis tasks done')
+	def _write_subtasks(self, tasks, job_prefix, dir_prefix, shell, max_subtask):
 
-	def set_subtasks(self, job_prefix = None, maxfile = 300):
-		def get_time_command():
+		def get_time_exe():
 			if which('time'):
 				return'time '
 			elif which('/usr/bin/time'):
 				return "/usr/bin/time -p "
 			return ''
 
-		d = os.path.abspath(self.path[-1]) + '.work/'
-		subtask_file = job_prefix + '.sh' if job_prefix else self.prefix + '.sh'
-		task_count = len(self.tasks)
-		split = 1 if task_count > maxfile else 0
-		time = get_time_command() 
+		jobs = []
+		time = get_time_exe()
+		task_count = len(tasks)
+		split = 1 if task_count > max_subtask else 0
+		subtask_file = job_prefix + '.sh'
+		work_parent_dir = os.path.abspath(self.job.path) + '.work'
 		for i in range(task_count):
 			if split:
-				subtask_dir = self.prefix + '{:0>{}}/'.format(int(split/maxfile), len(str(int(task_count/maxfile)))) + \
-					self.prefix + '{:0>{}}'.format(i, len(str(task_count)))
+				subtask_dir = '{}/{}{:0>{}}/{}{:0>{}}'.format(work_parent_dir, dir_prefix, int(split/max_subtask), \
+					len(str(int(task_count/max_subtask))), dir_prefix, i + 1, len(str(task_count)))
 				split += 1
 			else:
-				subtask_dir = self.prefix + '{:0>{}}'.format(i, len(str(task_count)))
+				subtask_dir = '{}/{}{:0>{}}'.format(work_parent_dir, dir_prefix, i + 1, len(str(task_count)))
 
-			subtask_finish_lable = d + subtask_dir + '/' + subtask_file + '.done'
+			subtask_finish_lable = subtask_dir + '/' + subtask_file + '.done'
 			if not os.path.exists(subtask_finish_lable):
-				pmkdir(d + subtask_dir)
-				subtask = '#!' + self.bash + '\n' + \
-						'set -xve\n' + \
-						'hostname\n' + \
-						'cd ' + d + subtask_dir + '\n'
-				for task in self.tasks[i]:
+				pmkdir(subtask_dir)
+				subtask = "#!%s\nset -xve\nhostname\ncd %s\n" % (self.shell, subtask_dir)
+				for task in tasks[i]:
 					subtask += time + task + '\n'
-				subtask += 'touch ' + d + subtask_dir + '/' + subtask_file + '.done\n'
-				with open(d + subtask_dir + '/' + subtask_file, 'w') as OUT:
-					print(subtask, file=OUT)
-					os.chmod(d + subtask_dir + '/' + subtask_file, 0o744)
-			self.subtasks.append(d + subtask_dir + '/' + subtask_file)
+				subtask += "touch %s/%s.done\n" % (subtask_dir, subtask_file)
+				with open(subtask_dir + '/' + subtask_file, 'w') as OUT:
+					print (subtask, file=OUT)
+					os.chmod(subtask_dir + '/' + subtask_file, 0o744)
+			jobs.append(Job(subtask_dir + '/' + subtask_file))
+		return jobs
 
-	def set_run(self, max_pa_jobs = 5, bash = '/bin/bash', job_type = 'sge', interval = 30, cpu = 1, vf = '', sge_options = ''):
-		self.run = Run(self.subtasks, max_pa_jobs, bash, job_type, interval, cpu , vf, sge_options)
+	def is_finished(self):
+		return self.job.is_finished()
+
+	def set_task_finished(self):
+		self.job.set_task_finished()
+
+	def set_run(self, max_parallel_job=5, job_type='local', interval_time=30, cpu=1, mem=None, \
+			use_drmaa=False, cfg_file=None, submit=None, kill=None, check_alive=None, job_id_regex=None):
+		if not cfg_file:
+			_cfg_file = os.path.dirname(os.path.realpath(__file__)) + '/cluster.cfg'
+			if os.path.exists(_cfg_file):
+				cfg_file = _cfg_file
+
+		if job_type == 'local':
+			self.run = Local(self.jobs, max_parallel_job, self.shell, interval_time)
+		elif use_drmaa:
+			self.run = Drmaa(self.jobs, max_parallel_job, self.shell, job_type, interval_time, \
+				cpu, mem, cfg_file, submit)
+		else:
+			self.run = Cluster(self.jobs, max_parallel_job, self.shell, job_type, interval_time, \
+				cpu, mem, cfg_file, submit, kill, check_alive, job_id_regex)
+		return self.run
+
 
 class Run(object):
-	"""docstring for Run"""
-	RUNNINGTASK = {'sge':[], 'local':[], 'drmaa':None}
 
-	def __init__(self, tasks, max_pa_jobs, bash, job_type, interval, cpu, vf, sge_options):
-		self.tasks = tasks
-		self.unfinished_tasks = []
+	instances = []
+
+	def __init__(self, jobs, max_parallel_job=5, shell='/bin/sh', job_type='local', interval_time=30, cpu=1, mem=None, \
+			cfg_file=None, submit=None, kill=None, check_alive=None, job_id_regex=None):
+		self.jobs = jobs
+		self.unfinished_jobs = []
+		self.running_jobs = []
 		self.job_type = job_type.lower()
-		self.max_pa_jobs = int(max_pa_jobs)
-		self.interval = int(interval)
+		self.max_parallel_job = int(max_parallel_job)
+		self.interval_time = int(str(interval_time).lower().strip('s'))
 		self.cpu = str(cpu)
-		self.vf = str(vf) if vf else self.cpu + 'G'
-		self.bash = str(bash)
-		self.sge_options = str(sge_options)
-		self.option = self._getoption()
-		self.drmaa = ''
-		self.check()
-		
-	def start(self):
-		log.info('Total jobs: ' + str(len(self.unfinished_tasks)))
-		if self.job_type == 'local':
-			self._local()
-		else:
-			global drmaa
-			import drmaa as drmaa
-			self._sge()
+		self.shell = str(shell)
+		self._submit = submit
+		self._kill = kill
+		self._check_alive = check_alive
+		self._job_id_regex = job_id_regex
+		if cfg_file:
+			self._parse_cfg(cfg_file)
+		if not mem:
+			mem = '%sG' % self.cpu
+		self.mem = self._parse_mem(str(mem))
+		Run.KILL_CMD = self._kill
+		self.is_finished()
+		Run.instances.append(self)
 
+	def _parse_cfg(self, infile):
+		with open(infile) as IN:
+			section = None
+			for line in IN:
+				line = line.strip()
+				if not line or line[0].startswith('#'):
+					continue
+				if line.startswith('['):
+					if section:
+						break
+					group = re.search(r'\[\s*(\S+)\s*\]', line)
+					if group and self.job_type in group.group(1).lower():
+						section = True
+					continue
+				elif section:				
+					group = re.search(r'([^;\s]+)\s*[=:]\s*([^;#\n]+)(\s*|#.*)$', line) # a option = value1 value2 # annotation
+					if group:
+						name, value = group.group(1).lower(), group.group(2)
+						if name == 'submit' and not self._submit:
+							self._submit = value
+						elif name == 'kill' and not self._kill:
+							self._kill = value
+						elif name in ['check-alive', 'check_alive'] and not self._check_alive:
+							self._check_alive = value
+						elif name in ['job-id-regex', 'job_id_regex'] and not self._job_id_regex:
+							self._job_id_regex = value
+
+	def _parse_mem(self, mem):
+
+		def _set_lsf_mem():
+			unit = 'M'
+			unit_cfg_fpath = os.getenv('LSF_ENVDIR') + "/lsf.conf"
+			if os.path.exists(unit_cfg_fpath):
+				with open(unit_cfg_fpath) as IN:
+					g = re.search(r'LSF_UNIT_FOR_LIMITS\s*=\s*(\S+)\s*', IN.read(), re.I)
+					if g:
+						unit = g.group(1)
+			return parse_num_unit(mem) / parse_num_unit("1%s" % (unit))
+
+		if self.job_type == 'slurm' and '--mem-per-cpu' in self._submit:
+			return int(parse_num_unit(mem, 1024)/1000000/int(self.cpu)) + 1
+		if self.job_type == 'lsf' and 'mem' in self._submit:
+			return int(self._set_lsf_mem())
+		return mem
+
+	def submit(self, job):
+		assert 'script' in self._submit
+		job.cmd = self._submit.format(cpu=self.cpu, mem=self.mem, shell=self.shell, \
+			script=job.path, out=job.out, err=job.err)
+		_, stdout, _ = self.run(job.cmd)
+		job.id = self.parse_id(stdout)
+		return job.id
+
+	def kill(self, job):
+		assert 'job_id' in self._kill
+		cmd = self._kill.format(job_id=job.id)
+		return self.run(cmd)
+
+	def check_alive(self, job):#Here we may need to parase job status
+		assert 'job_id' in self._check_alive
+		cmd = self._check_alive.format(job_id=job.id)
+		returncode, stdout, stderr = self.run(cmd, check=False)
+		return returncode == 0
+
+	def has_alive(self):
+		for job in self.running_jobs:
+			if self.check_alive(job):
+				return True
+		return False
+
+	def parse_id(self, has_id):
+		assert '(' in self._job_id_regex and ')' in self._job_id_regex
+		group = re.search(r'%s' % self._job_id_regex, has_id)
+		if not group:
+			log.critical("Failed to parse job id using job-id-regex:%s in log:%s" % (self._job_id_regex, has_id))
+		return group.group(1)
+
+	def run(self, cmd, check=True):
+		p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		stdout, stderr = (byte2str(i) for i in p.communicate())
+		if check and p.returncode != 0:
+			stderr = stderr.replace("\n", "; ")
+			log.critical("Command '%s' returned non-zero exit status %d, error info: %s." % (cmd, p.returncode, stderr))
+		return p.returncode, stdout, stderr
+		
 	def rerun(self):
-		# if self.job_type != 'local':
-		# 	vfs = re.split(r'(\d+)', self.vf)
-		# 	self.vf = str(int(int(vfs[-2]) * 1.5)) + vfs[-1] #TODO fix
-		# 	self.option = self._getoption()
 		self.start()
 
-	def check(self):
-		self.unfinished_tasks = []
-		for task in self.tasks:
-			if not os.path.exists(task + '.done'):
-				self.unfinished_tasks.append(task)
-		if self.unfinished_tasks and len(self.unfinished_tasks) < 5: # Avoid delays in generating done files
+	def is_finished(self):
+		self.unfinished_jobs = []
+		for job in self.jobs:
+			if not job.is_finished():
+				self.unfinished_jobs.append(job)
+		if self.unfinished_jobs and len(self.unfinished_jobs) < 5: # Avoid delays in generating done files
 			time.sleep(5)
-			for task in list(self.unfinished_tasks):
-				if os.path.exists(task + '.done'):
-					self.unfinished_tasks.remove(task)
-		return False if self.unfinished_tasks else True
-
-	@classmethod
-	def kill(self, signum, frame):
-		log.warning('Accept killed signal and kill all running jobs, please wait...')
-		if Run.RUNNINGTASK['sge']:
-			for jobid in Run.RUNNINGTASK['sge']:  
-				try:
-					Run.RUNNINGTASK['drmaa'].control(jobid, drmaa.JobControlAction.TERMINATE)
-				except Exception:
-					pass
-			Run.RUNNINGTASK['drmaa'].exit()
+			for job in list(self.unfinished_jobs):
+				if job.is_finished():
+					self.unfinished_jobs.remove(job)
+		if self.unfinished_jobs:
+			return False
 		else:
-			for jobid in Run.RUNNINGTASK['local']:
-				os.kill(jobid, signal.SIGKILL)
-		Run.RUNNINGTASK = {'sge':[], 'local':[]}
-		log.warning('Kill running jobs done')
+			Run.instances.remove(self)
+			return True
+
+	def _clean(self):
+		log.warning('Accepted a killed signal and killing all running jobs, please wait...')
+		with open(os.devnull, 'w') as devnull:
+			pjobs = self.running_jobs[:]
+			for job in pjobs:
+				ret = subprocess.call(Run.KILL_CMD.format(job_id=job.id), shell=True, stdout=devnull, stderr=devnull)
+				if ret == 0:
+					self.running_jobs.remove(job)
+		if self.has_alive():
+			log.error("Failed to kill the running jobs, please check")
+		else:
+			log.warning('Killed all running jobs done')
 		sys.exit(1)
 
-	def _sge(self):		
-		j = 0
-		Run.RUNNINGTASK['sge'] = []
-		Run.RUNNINGTASK['drmaa'] = self.drmaa = drmaa.Session()
-		self.drmaa.initialize()
-		jt = self.drmaa.createJobTemplate()
-		jt.jobEnvironment = os.environ.copy()
-		if self.option and self.option not in ['None', 'False', '0']:
-			jt.nativeSpecification = self.option
-		while j < len(self.unfinished_tasks):
-			task = self.unfinished_tasks[j]
-			if j < self.max_pa_jobs or self._check_running < self.max_pa_jobs:
-				jt.remoteCommand = task
-				jt.outputPath = ':' + task + '.o'
-				jt.errorPath = ':' + task + '.e'
-				jt.workingDirectory = os.path.dirname(task)
-				jobid = self.drmaa.runJob(jt)
-				Run.RUNNINGTASK['sge'].append(jobid)
-				log.info('Submit jobID:[' + jobid + '] jobCmd:['  + task + '] in the ' + self.job_type + '_cycle.')
-				j += 1
-			else:
-				time.sleep(self.interval)
-		else:
-			while (1):
-				if self._check_running:
-					time.sleep(self.interval)
-				else:
-					break
-		time.sleep(5)
-		self.drmaa.deleteJobTemplate(jt)
-		self.drmaa.exit()
+	@classmethod
+	def clean(cls, signum, frame):
+		for self in Run.instances:
+			self._clean()
 
 	@property
-	def _check_running(self):
-		runningJop = 0
-		pjobs = Run.RUNNINGTASK['sge'][:]
-		for jobid in pjobs:
-			if self.drmaa.jobStatus(jobid) not in [drmaa.JobState.UNDETERMINED, \
-				drmaa.JobState.DONE, drmaa.JobState.FAILED]:
-				runningJop += 1
+	def check_running(self):
+		running = 0
+		pjobs = self.running_jobs[:]
+		for job in pjobs:
+			if self.check_alive(job):
+				running += 1
 			else:
-				try:
-					self.drmaa.wait(jobid, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-				except Exception:
-					pass
-				finally:
-					Run.RUNNINGTASK['sge'].remove(jobid)
-		return runningJop
+				self.running_jobs.remove(job)
+		return running
 
-	def _local(self):
+	def start(self):
+		log.info('Total jobs: ' + str(len(self.unfinished_jobs)))
+		self._start()
+
+	def _start(self):
+		raise NotImplementedError
+		
+class Local(Run):
+	"""docstring for local"""
+	def __init__(self, jobs, max_parallel_job, shell, interval_time):
+		super(Local, self).__init__(jobs, max_parallel_job, shell, 'local', interval_time, \
+				submit="%s {script} > {out} 2> {err}" % shell, kill="kill {job_id}")
+		self.ppid = os.getpid()
+	
+	def check_alive(self, job):
+		return psutil.pid_exists(job.id) and psutil.Process(job.id).ppid() == self.ppid
+
+	def parse_id(self, has_id):
+		return
+
+	def _start(self):
 		subids = []
-		for i in range(len(self.unfinished_tasks)):
-			newpid = os.fork() 
+		for i in range(len(self.unfinished_jobs)):
+			job = self.unfinished_jobs[i]
+			newpid = os.fork()
 			if newpid == 0:
-				os.system('sh ' + self.unfinished_tasks[i] + ' > ' + self.unfinished_tasks[i] + '.o ' + '2> ' + self.unfinished_tasks[i] + '.e ')
+				self.submit(job)
 				os._exit(0)
 			else:
-				subids.append(newpid)
-				Run.RUNNINGTASK['local'].append(newpid)
-				log.info('Submit jobID:[' + str(newpid) + '] jobCmd:['  + self.unfinished_tasks[i] + '] in the local_cycle.')
-				if i >= self.max_pa_jobs - 1:
+				job.id = newpid
+				self.running_jobs.append(job)
+				log.info('Submitted jobID:[' + str(newpid) + '] jobCmd:['  + job.path + '] in the local_cycle.')
+				if i >= self.max_parallel_job - 1:
 					os.wait()
 			time.sleep(0.5)
 
-		while subids:
-			subid = subids.pop()
-			if psutil.pid_exists(subid) and psutil.Process(subid).ppid() == os.getpid():
-				os.waitpid(subid, 0)
+		pjobs = self.running_jobs[:]
+		while pjobs:
+			pjob = pjobs.pop()
+			if self.check_alive(pjob):
+				os.waitpid(pjob.id, 0)
 				time.sleep(0.5)
-			Run.RUNNINGTASK['local'].remove(subid)
+			self.running_jobs.remove(pjob)
 
-	def _set_lsf_mem(self):
-		unit = 'M'
-		unit_cfg_fpath = os.getenv('LSF_ENVDIR') + "/lsf.conf"
-		if os.path.exists(unit_cfg_fpath):
-			with open(unit_cfg_fpath) as IN:
-				g = re.search(r'LSF_UNIT_FOR_LIMITS\s*=\s*(\S+)\s*', IN.read(), re.I)
-				if g:
-					unit = g.group(1)
-		return parse_num_unit(self.vf) / parse_num_unit("1%s" % (unit))
+	def _clean(self):
+		if os.getpid() != self.ppid:
+			sys.exit(1)
+		super(Local, self)._clean()
 
-	def _getoption(self):
-		if self.sge_options in ['None', 'False', '0', '', 'auto'] or not self.sge_options:
-			if self.job_type == 'sge':
-				self.sge_options = '-l vf={vf} -pe smp {cpu} -S {bash} -w n'
-			elif self.job_type == 'slurm':
-				self.sge_options = '--cpus-per-task={cpu} --mem-per-cpu={vf}'
-			elif self.job_type == 'pbs' or self.job_type == 'torque':
-				self.sge_options = '-l nodes=1:ppn={cpu}:mem={vf}'
-			elif self.job_type == 'lsf':
-				self.sge_options = '-n {cpu} -R rusage[mem={vf}]'
-		if self.job_type == 'slurm' and '--mem-per-cpu' in self.sge_options:
-			self.vf = int(parse_num_unit(self.vf, 1024)/1000000/int(self.cpu)) + 1
-		if self.job_type == 'lsf' and 'vf' in self.sge_options:
-			self.vf = int(self._set_lsf_mem())
-		return self.sge_options.format(cpu=self.cpu, vf=self.vf, bash=self.bash)
+class Cluster(Run):
+
+	def _start(self):
+		j = 0
+		while j < len(self.unfinished_jobs):
+			job = self.unfinished_jobs[j]
+			if j < self.max_parallel_job or self.check_running < self.max_parallel_job:
+				self.submit(job)
+				self.running_jobs.append(job)
+				log.info('Submitted jobID:[' + job.id + '] jobCmd:['  + job.path + '] in the ' + self.job_type + '_cycle.')
+				j += 1
+			else:
+				time.sleep(self.interval_time)
+		else:
+			while (1):
+				if self.check_running:
+					time.sleep(self.interval_time)
+				else:
+					break
+		time.sleep(1)
+		
+class Drmaa(Run):
+
+	def __init__(self, jobs, max_parallel_job, shell, job_type, interval_time, cpu, mem, cfg_file, submit):
+		super(Drmaa, self).__init__(jobs, max_parallel_job, shell, job_type, interval_time, cpu, mem, \
+				cfg_file, submit)
+		self.option = self._get_option()
+
+		import drmaa as drmaa
+		self.drmaa = drmaa
+		self.session = drmaa.Session()
+		self.session.initialize()
+
+	def _start(self):
+		j = 0
+		jt = self.session.createJobTemplate()
+		jt.jobEnvironment = os.environ.copy()
+		jt.nativeSpecification = self.option
+		while j < len(self.unfinished_jobs):
+			if j < self.max_parallel_job or self.check_running < self.max_parallel_job:
+				job = self.unfinished_jobs[j]
+				jt.remoteCommand = job.path
+				jt.outputPath = ':%s' % job.out
+				jt.errorPath = ':%s' % job.err
+				jt.workingDirectory = os.path.dirname(job.path)
+				job.id = self.session.runJob(jt)
+				self.running_jobs.append(job)
+				log.info('Submitted jobID:[' + job.id + '] jobCmd:['  + job.path + '] in the ' + self.job_type + '_cycle.')
+				j += 1
+			else:
+				time.sleep(self.interval_time)
+		else:
+			while (1):
+				if self.check_running:
+					time.sleep(self.interval_time)
+				else:
+					break
+		time.sleep(5)
+		self.session.deleteJobTemplate(jt)
+		self.session.exit()
+
+	def kill(self, job):
+		try:
+			self.session.control(job.id, self.drmaa.JobControlAction.TERMINATE)
+		except Exception:
+			pass
+
+	def check_alive(self, job):
+		return self.session.jobStatus(job.id) not in [self.drmaa.JobState.UNDETERMINED, \
+				self.drmaa.JobState.DONE, self.drmaa.JobState.FAILED]
+
+	@property
+	def check_running(self):
+		running = 0
+		pjobs = self.running_jobs[:]
+		for job in pjobs:
+			if self.check_alive(job):
+				running += 1
+			else:
+				try:
+					self.session.wait(job.id, self.drmaa.Session.TIMEOUT_WAIT_FOREVER)
+				except Exception:
+					pass
+				finally:
+					self.running_jobs.remove(job)
+		return running
+
+	def _clean(self):
+		log.warning('Accepted a killed signal and killing all running jobs, please wait...')
+		pjobs = self.running_jobs[:]
+		for job in pjobs:
+			try:
+				self.session.control(job.id, self.drmaa.JobControlAction.TERMINATE)
+				self.running_jobs.remove(job)
+			except Exception:
+				pass
+		if self.has_alive():
+			log.error("Failed to kill the running jobs, please check")
+		else:
+			log.warning('Killed all running jobs done')
+		self.session.exit()
+		sys.exit(1)
+
+	def _get_option(self):
+		assert self._submit
+		opt = ''
+		opts = self._submit.split()
+		i = 0
+		while i < len(opts):
+			p = opts[i]
+			if i == 0 and not p.startswith('-'):
+				i += 1
+			elif p.startswith('-'):
+				if i < len(opts):
+					v = opts[i + 1]
+					if not v.startswith('-'):
+						if v not in ['{out}', '{err}', '{script}']:
+							opt += '%s %s ' % (p, v)
+						i += 2
+					else:
+						opt += '%s ' % p
+						i += 1
+				else:
+					opt += '%s ' % p
+					i += 1
+			else:
+				if p not in ['{out}', '{err}', '{script}']:
+					opt += '%s ' % p
+				i += 1
+		if self.job_type == 'sge' and "-w n" not in opt:
+			opt += ' -w n'
+		return opt.format(cpu=self.cpu, mem=self.mem, shell=self.shell)
+
+signal.signal(signal.SIGINT, Run.clean)
+signal.signal(signal.SIGTERM, Run.clean)
