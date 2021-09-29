@@ -12,24 +12,44 @@ elif sys.version_info[0] == 3:
 else:
 	raise Exception("Unknown Python version")
 
-__all__ = ['plog', 'pmkdir', 'which', 'parse_num_unit']
+__all__ = ['plog', 'pmkdir', 'which', 'parse_num_unit', 'byte2str']
 
-def pmkdir(path):
-	if not os.path.exists(path):
-		os.makedirs(path)
-		return True
-	else:
-		return False
+class ExitOnCritical(logging.StreamHandler):
+	def emit(self, record):
+		if isinstance(record.msg, list):
+			record.msg = ' '.join(record.msg)
+		elif isinstance(record.msg, dict):
+			record.msg ="\n" +  "\n".join(("%-30s%s" % (str(k).strip() + ':', str(v).strip()) for k, v in \
+				sorted(record.msg.items(), key = lambda x: len(str(x[0]) + str(x[1])))))
+		elif hasattr(record.msg, '__dict__'):
+			record.msg ="\n" + "\n".join(("%-30s%s" % (str(k).strip() + ':', str(v).strip()) for k, v in \
+				sorted(vars(record.msg).items(), key = lambda x: len(str(x[0]) + str(x[1])))))
+
+		if record.levelno >= logging.ERROR:
+			msg = record.msg
+			record.msg = '\033[35m%s\033[0m' % msg
+			super(ExitOnCritical, self).emit(record)
+			record.msg = msg
+		else:
+			super(ExitOnCritical, self).emit(record)
+		if record.levelno >= logging.CRITICAL:
+			need_emit = False
+			for handler in logging.getLogger().handlers:
+				if need_emit:
+					handler.emit(record)
+				elif handler == self:
+					need_emit = True
+			raise Exception(record.msg)
 
 def plog(path = False):
-
-	formatter = logging.Formatter('[%(levelname)s] %(asctime)s %(message)s')
+	formatter = logging.Formatter('[%(process)d %(levelname)s] %(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 	log = logging.getLogger()
 	if log.handlers:
 		return log
 
-	log.setLevel(logging.DEBUG)
-	console_handler = logging.StreamHandler()
+	log.setLevel(logging.INFO)
+	# console_handler = logging.StreamHandler()
+	console_handler = ExitOnCritical()
 	console_handler.setFormatter(formatter)
 	log.addHandler(console_handler)
 
@@ -78,3 +98,21 @@ def parse_num_unit(content, base=1000):
 			value = float(contents[0][:-2])
 			unit = parse_unit(contents[0][-2:], base)
 	return int(value * unit + .499)
+
+def pmkdir(path):
+	if not os.path.exists(path):
+		os.makedirs(path)
+		return True
+	else:
+		return False
+
+def byte2str(byte, ignore=True):
+	if ignore:
+		try:
+			byte = byte.decode("UTF-8")
+		except Exception:
+			pass
+		finally:
+			return byte
+	else:
+		return byte.decode("UTF-8")
