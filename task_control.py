@@ -251,6 +251,8 @@ class Run(object):
 		assert 'job_id' in self._check_alive
 		cmd = self._check_alive.format(job_id=job.id)
 		returncode, stdout, stderr = self.run(cmd, check=False)
+		if self.job_type == 'slurm':
+			return returncode == 0 and job.id in stdout #slurm will save a job info. in 300s by default
 		return returncode == 0
 
 	def has_alive(self):
@@ -269,6 +271,7 @@ class Run(object):
 	def run(self, cmd, check=True):
 		p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		stdout, stderr = (byte2str(i) for i in p.communicate())
+		# log.error("cmd:%s, stdout:%s, stderr:%s" % (cmd, stdout, stderr))
 		if check and p.returncode != 0:
 			stderr = stderr.replace("\n", "; ")
 			log.critical("Command '%s' returned non-zero exit status %d, error info: %s." % (cmd, p.returncode, stderr))
