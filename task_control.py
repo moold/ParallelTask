@@ -10,7 +10,7 @@ import signal
 import subprocess
 from kit import *
 
-__all__ = ['Task', 'Run']
+__all__ = ['Task']
 
 log = plog()
 
