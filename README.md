@@ -1,51 +1,40 @@
-# ParallelTask
-A super simple and lightweight parallel task engine using drmaa
+# Paralleltask
+Paralleltask is a simple and lightweight parallel task engine. It can launch a given number of tasks from a batch of independent tasks, and keep this number of running tasks until all tasks are completed.
 
-## USUAGE
-The doc. and API examples are in `main.py`, use `python main.py -h` for details.
+## Why Paralleltask?
+Suppose you have dozens or hundreds of independent tasks that can run in parallel (non-independent tasks can be put together to form an independent task group). Due to the limitation of computing resources, you cannot run all tasks at the same time. Of course, it is not realistic to run one by one, so you want to run a specific number of tasks at the same time, and keep this number of running tasks (once a task is completed, start a new task) until all tasks are completed.
 
-The default cluster_option is listed below, which also can be set manually:
-* sge    `-l vf={vf} -pe smp {cpu} -S {bash} -w n`
-* pbs    `-l nodes=1:ppn={cpu}:mem={vf}`
-* slurm  `--cpus-per-task={cpu} --mem-per-cpu={vf}`
-* lsf    `-n {cpu} -R rusage[mem={vf}]`
+* zero configuration, no dependencies, easy to install and use.
 
-## INSTALL
+* support breakpoint resume, automatically re-execute failed tasks and ignore successful tasks.
 
-* **Configure drmaa for SGE**
+* automatically kill submitted tasks once the main program receives a termination signal (`Ctrl+C`).
+
+* support multiple task scheduling systems, such as `LOCAL`, `SGE`, `PBS`, `SLURM` and `LSF`.
+
+* automatically convert relative path to absolute path.
+
+* support python 2 and 3.
+
+## Installation
 ```
-pip install drmaa
-export DRMAA_LIBRARY_PATH=/path_to_sge/lib/lx-amd64/libdrmaa.so.1.0
-```
-
-* **Configure drmaa for PBS**
-<!--https://hub.docker.com/r/agaveapi/torque -->
-```
-pip install drmaa
-wget https://downloads.sourceforge.net/project/pbspro-drmaa/pbs-drmaa/1.0/pbs-drmaa-1.0.19.tar.gz
-tar -vxzf pbs-drmaa-1.0.19.tar.gz
-cd pbs-drmaa-1.0.19
-./configure && make && make install
-export DRMAA_LIBRARY_PATH=`pwd`/pbs_drmaa/.libs/libdrmaa.so.1
+pip install psutil
+git clone https://github.com/moold/ParallelTask.git
 ```
 
-* **Configure drmaa for slurm**  
-<!-- https://hub.docker.com/r/ohsucompbio/slurm -->
-```
-pip install drmaa
-wget https://github.com/natefoo/slurm-drmaa/releases/download/1.1.0/slurm-drmaa-1.1.0.tar.gz
-tar -vxzf slurm-drmaa-1.1.0.tar.gz
-cd slurm-drmaa-1.1.0
-./configure && make && make install
-export DRMAA_LIBRARY_PATH=`pwd`/slurm_drmaa/.libs/libdrmaa.so.1
-```
+If you prefer to use the [drmaa](https://github.com/pygridtools/drmaa-python) library, instead of using commands (such as `qsub`) to submit and control tasks, see [here](./DRMAA.md) to install `drmaa`.
 
-* **Configure drmaa for LSF**
-```
-pip install drmaa
-wget https://github.com/IBMSpectrumComputing/lsf-drmaa/archive/v1.11.tar.gz
-tar -vxzf v1.11.tar.gz
-cd lsf-drmaa-1.11
-./configure && make && make install
-export DRMAA_LIBRARY_PATH=`pwd`/lsf_drmaa/.libs/libdrmaa.so.1
-```
+## Test
+`python main.py test.sh`
+
+## Configuration 
+If you want to change some of the default settings, you can pass parameters (use `python main.py -h` for details) or directly edit the configure template file `cluster.cfg`.
+
+***Note***: Paralleltask will replace `{mem}`, `{cpu}`, `{bash}`, `{out}`, `{err}`, `{script}` and `{job_id}` with specific values needed for each jobs, see the configure template [file](./cluster.cfg) for details.
+
+## Getting Help
+
+Feel free to raise an issue at the [issue page](https://github.com/moold/ParallelTask/issues), and welcome to [pull request](https://github.com/moold/ParallelTask/pulls) if you find a bug or have an idea for this project.
+
+## Star
+You can track updates by tab the `Star` button on the upper-right corner at this page.
