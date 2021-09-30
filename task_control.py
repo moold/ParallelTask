@@ -52,8 +52,9 @@ class Task(object):
 				lines = line.split()
 				if convert_path:
 					for i in range(len(lines)):
-						if not re.search(r'\/',lines[i]):
-							if os.path.exists(lines[i]) or lines[i - 1] == '>' or lines[i - 1] == '1>' or lines[i - 1] == '2>':
+						if '/' not in lines[i]:
+							if os.path.exists(lines[i]) or (i > 1 and (lines[i - 1] == '>' or lines[i - 1] == '1>' \
+									or lines[i - 1] == '2>')):
 								lines[i] = os.path.abspath(lines[i])
 							elif lines[i].startswith('>') and len(lines[i]) > 1 :
 								lines[i] = lines[i][0] + ' ' + os.path.abspath(lines[i][1:])
@@ -63,16 +64,16 @@ class Task(object):
 								paramters = lines[i].split("=")
 								lines[i] = paramters[0] + '=' + os.path.abspath(paramters[1]) if \
 								paramters[1] and len(paramters) == 2 and os.path.exists(paramters[1]) else lines[i]
-						elif re.search(r'=',lines[i]):
+						elif '=' in lines[i]:
 							paramters = lines[i].split("=")
 							lines[i] = paramters[0] + '=' + os.path.abspath(paramters[1]) if \
 								paramters[1] and len(paramters) == 2 else lines[i]
-						elif re.search(r'>',lines[i]):
+						elif '>' in lines[i]:
 							paramters = lines[i].split(">")
 							lines[i] = paramters[0] + '>' + os.path.abspath(paramters[1]) if \
 								paramters[1] and len(paramters) == 2 else lines[i]
 						else:
-							lines[i] = os.path.abspath(lines[i])
+							lines[i] = os.path.abspath(os.path.expanduser(lines[i]))
 				tasks.append(" ".join(lines))
 		return tasks
 
@@ -308,12 +309,13 @@ class Run(object):
 			log.error("Failed to kill the running jobs, please check")
 		else:
 			log.warning('Killed all running jobs done')
-		sys.exit(1)
 
 	@classmethod
 	def clean(cls, signum, frame):
 		for self in Run.instances:
 			self._clean()
+		log.warning('Exit!')
+		sys.exit(1)
 
 	@property
 	def check_running(self):
@@ -476,7 +478,6 @@ class Drmaa(Run):
 		else:
 			log.warning('Killed all running jobs done')
 		self.session.exit()
-		sys.exit(1)
 
 	def _get_option(self):
 		assert self._submit
