@@ -108,7 +108,7 @@ exmples:
 			help = 'the required CPU for each subtask.')
 	parser.add_argument('-M','--memory', metavar = 'STR', type = str, default = '3G', 
 			help = 'the required memory for each subtask.')
-	parser.add_argument('-m','--maxjob',metavar = 'INT',type = int,default = 30, 
+	parser.add_argument('-m','--maxjob',metavar = 'INT',type = int,default = 10, 
 			help = 'the maximum number of jobs to run in parallel.' )
 	parser.add_argument('-r','--rerun', metavar = 'INT', type = int, default = 3, 
 			help = 'rerun unfinished subtasks with the maximum INT of cycles.')
