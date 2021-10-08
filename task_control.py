@@ -186,7 +186,6 @@ class Run(object):
 		if not mem:
 			mem = '%sG' % self.cpu
 		self.mem = self._parse_mem(str(mem))
-		Run.KILL_CMD = self._kill
 		self.is_finished()
 		Run.instances.append(self)
 
@@ -302,7 +301,7 @@ class Run(object):
 		with open(os.devnull, 'w') as devnull:
 			pjobs = self.running_jobs[:]
 			for job in pjobs:
-				ret = subprocess.call(Run.KILL_CMD.format(job_id=job.id), shell=True, stdout=devnull, stderr=devnull)
+				ret = subprocess.call(self._kill.format(job_id=job.id), shell=True, stdout=devnull, stderr=devnull)
 				if ret == 0:
 					self.running_jobs.remove(job)
 		if self.has_alive():
