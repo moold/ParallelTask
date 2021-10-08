@@ -4,7 +4,7 @@ Paralleltask is a simple and lightweight parallel task engine. It can launch a g
 ## Why Paralleltask?
 Suppose you have dozens or hundreds of independent tasks that can run in parallel (non-independent tasks can be put together to form an independent task group). Due to the limitation of computing resources, you cannot run all tasks at the same time. Of course, it is not realistic to run one by one, so you want to run a specific number of tasks at the same time, and keep this number of running tasks (once a task is completed, start a new task) until all tasks are completed.
 
-* zero configuration, no dependencies, easy to install and use.
+* zero configuration, no dependencies, no prior knowledge required, easy to install and use.
 
 * support breakpoint resume, automatically re-execute failed tasks and ignore successful tasks.
 
