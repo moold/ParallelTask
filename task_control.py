@@ -34,15 +34,19 @@ class Job(object):
 
 class Task(object):
 
-	def __init__(self, path, group=1, max_subtask=300, job_prefix='subjob', dir_prefix='work', shell='/bin/sh', convert_path=True):
+	def __init__(self, path, group=1, max_subtask=300, job_prefix='subjob', dir_prefix='work', \
+			shell='/bin/sh', convert_path=True):
 		self.job = Job(path)
+		self.group = group
+		self.max_subtask = max_subtask
+		self.job_prefix = job_prefix
+		self.dir_prefix = dir_prefix
 		self.shell = shell
+		self.convert_path = convert_path
 		self.run = None
-		if not self.is_finished():
-			self.jobs = self._write_subtasks(self._init_subtasks(self._read_task(convert_path), group), \
-				job_prefix, dir_prefix, shell, max_subtask)
+		self._jobs = [] if self.is_finished() else self._write_subtasks(self._init_subtasks(self._read_task()))
 
-	def _read_task(self, convert_path):
+	def _read_task(self):
 		tasks = []
 		with open(self.job.path) as IN:
 			for line in IN:
@@ -50,7 +54,7 @@ class Task(object):
 				if not line or line[0].startswith('#'):
 					continue
 				lines = line.split()
-				if convert_path:
+				if self.convert_path:
 					for i in range(len(lines)):
 						if '/' not in lines[i]:
 							if os.path.exists(lines[i]) or (i > 1 and (lines[i - 1] == '>' or lines[i - 1] == '1>' \
@@ -77,22 +81,22 @@ class Task(object):
 				tasks.append(" ".join(lines))
 		return tasks
 
-	def _init_subtasks(self, tasks, group):
+	def _init_subtasks(self, tasks):
 		group_tasks = []
-		if isinstance(group, int):
+		if isinstance(self.group, int):
 			task = []
 			for i in range(len(tasks)):
-				if task and i % group == 0:
+				if task and i % self.group == 0:
 					group_tasks.append(task)
 					task = []
 				task.append(tasks[i])
 			group_tasks.append(task)
-		elif isinstance(group, list):
+		elif isinstance(self.group, list):
 			j = 0
 			last_i = 0
 			task = []
 			for i in range(len(tasks)):
-				if i - last_i == group[j]:
+				if i - last_i == self.group[j]:
 					group_tasks.append(task)
 					task = []
 					last_i = i
@@ -100,10 +104,10 @@ class Task(object):
 				task.append(tasks[i])
 			group_tasks.append(task)
 		else:
-			log.error('Incorrect allocated task group:%s' % str(group))
+			log.error('Incorrect allocated task group:%s' % str(self.group))
 		return group_tasks
 
-	def _write_subtasks(self, tasks, job_prefix, dir_prefix, shell, max_subtask):
+	def _write_subtasks(self, tasks):
 
 		def get_time_exe():
 			if which('time'):
@@ -115,16 +119,16 @@ class Task(object):
 		jobs = []
 		time = get_time_exe()
 		task_count = len(tasks)
-		split = 1 if task_count > max_subtask else 0
-		subtask_file = job_prefix + '.sh'
+		split = 1 if task_count > self.max_subtask else 0
+		subtask_file = self.job_prefix + '.sh'
 		work_parent_dir = os.path.abspath(self.job.path) + '.work'
 		for i in range(task_count):
 			if split:
-				subtask_dir = '{}/{}{:0>{}}/{}{:0>{}}'.format(work_parent_dir, dir_prefix, int(split/max_subtask), \
-					len(str(int(task_count/max_subtask))), dir_prefix, i + 1, len(str(task_count)))
+				subtask_dir = '{}/{}{:0>{}}/{}{:0>{}}'.format(work_parent_dir, self.dir_prefix, int(split/self.max_subtask), \
+					len(str(int(task_count/self.max_subtask))), self.dir_prefix, i + 1, len(str(task_count)))
 				split += 1
 			else:
-				subtask_dir = '{}/{}{:0>{}}'.format(work_parent_dir, dir_prefix, i + 1, len(str(task_count)))
+				subtask_dir = '{}/{}{:0>{}}'.format(work_parent_dir, self.dir_prefix, i + 1, len(str(task_count)))
 
 			subtask_finish_lable = subtask_dir + '/' + subtask_file + '.done'
 			if not os.path.exists(subtask_finish_lable):
@@ -138,6 +142,12 @@ class Task(object):
 					os.chmod(subtask_dir + '/' + subtask_file, 0o744)
 			jobs.append(Job(subtask_dir + '/' + subtask_file))
 		return jobs
+
+	@property
+	def jobs(self):
+		if not self._jobs:
+			self._jobs = self._write_subtasks(self._init_subtasks(self._read_task()))
+		return self._jobs
 
 	def is_finished(self):
 		return self.job.is_finished()
@@ -293,7 +303,8 @@ class Run(object):
 		if self.unfinished_jobs:
 			return False
 		else:
-			Run.instances.remove(self)
+			if self in Run.instances:
+				Run.instances.remove(self)
 			return True
 
 	def _clean(self):
