@@ -100,8 +100,8 @@ exmples:
 			help = 'the type (%(choices)s) for the submission and control of jobs.')
 	parser.add_argument('-d', '--use_drmaa', action = 'store_true',
 			help = 'use drmaa to submit and control jobs.')
-	parser.add_argument('-i','--interval',metavar = 'INT',type = int,default = 30,
-			help = 'the interval time of checking status or submiting.')
+	parser.add_argument('-i','--interval',metavar = 'INT',type = int,default = 5,
+			help = 'the interval time (second) of checking status or submiting.')
 	parser.add_argument ('-l','--lines',metavar = 'INT',type = int,default = 1,
 			help = 'the number of lines to form a subtask.')
 	parser.add_argument('-p','--cpu', metavar = 'INT', type = int, default = 1, 
