@@ -12,7 +12,7 @@ Suppose you have dozens or hundreds of independent tasks that can run in paralle
 
 * support multiple task scheduling systems, such as `LOCAL`, `SGE`, `PBS`, `SLURM` and `LSF`.
 
-* automatically convert relative path to absolute path.
+* automatically convert relative path to absolute path in shell scripts.
 
 * support python 2 and 3.
 
@@ -24,8 +24,10 @@ git clone https://github.com/moold/ParallelTask.git
 
 If you prefer to use the [drmaa](https://github.com/pygridtools/drmaa-python) library, instead of using commands (such as `qsub`) to submit and control tasks, see [here](./DRMAA.md) to install `drmaa`.
 
-## Test
+## Usage and Testing
 `python main.py test.sh`
+
+The only required input file `test.sh` is a command collection file, which contains all the task commands that need to be run. A task command can be one or more lines, and an independent task group can be set by the parameter `--lines`. Using `python main.py -h` for details.
 
 ## Configuration 
 If you want to change some of the default settings, you can pass parameters (use `python main.py -h` for details) or directly edit the configure template file `cluster.cfg`.
