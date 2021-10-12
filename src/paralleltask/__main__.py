@@ -6,9 +6,12 @@ import re
 import shutil
 import argparse
 
-SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(SCRIPT_PATH)
-from kit import *
+try:
+	from task_control import Task
+	from kit import plog, pmkdir
+except ImportError:
+	from paralleltask import Task, plog
+	from paralleltask.kit import pmkdir
 
 log = ''
 
@@ -39,16 +42,11 @@ def set_workdir(args):
 		log.info('mkdir: ' + workdir)
 	return workdir
 
-def main(args):
-	if not args[1]:
-		parser.print_help()
-		sys.exit(1)
-
+def run(args):
 	global log
 	log_file = 'pid' + str(os.getpid()) + '.' + args[0].log
 	log = plog(log_file)
-	from task_control import Task
-
+	
 	log.info('start...')
 	log.info('logfile: ' + log_file)
 	log.info('options: ')
@@ -84,7 +82,7 @@ def main(args):
 		log.info('skip step: %s' % (tasktag))
 	log.info('%s finished' % (tasktag))
 
-if __name__ == '__main__':
+def main():
 	parser = argparse.ArgumentParser(
 		formatter_class = HelpFormatter,
 		description = '''
@@ -130,9 +128,10 @@ exmples:
 	parser.add_argument('--check_alive', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
 			help = 'command to check a job status, overwrite --config, read from --config by default.')
 	parser.add_argument('--job_id_regex', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
-			help = 'the job-id-regex to parse the job id from the out of --submit, overwrite --config, read from --config by default.')
-	parser.add_argument('--config', metavar = 'FILE', type = str, default = SCRIPT_PATH + '/cluster.cfg', 
-			help = 'the config file to load --submit,--kill,--check_alive,--job_id_regex value.')	
+			help = 'the job-id-regex to parse the job id from the out of --submit, overwrite --config' \
+			', read from --config by default.')
+	parser.add_argument('--config', metavar = 'FILE', type = str, default = os.path.dirname(os.path.realpath(__file__)) + \
+			'/cluster.cfg', help = 'the config file to load --submit,--kill,--check_alive,--job_id_regex value.')	
 	args = parser.parse_known_args()
 	if 'submit' not in args[0]:
 		args[0].submit = None
@@ -142,4 +141,11 @@ exmples:
 		args[0].check_alive = None
 	if 'job_id_regex' not in args[0]:
 		args[0].job_id_regex = None
-	main(args)
+
+	if not args[1]:
+		parser.print_help()
+		sys.exit(1)
+	run(args)
+
+if __name__ == '__main__':
+	main()

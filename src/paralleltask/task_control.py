@@ -8,7 +8,11 @@ import time
 import psutil
 import signal
 import subprocess
-from kit import *
+
+try:
+	from kit import *
+except ImportError:
+	from paralleltask.kit import *
 
 __all__ = ['Task']
 

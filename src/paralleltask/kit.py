@@ -4,11 +4,11 @@ from __future__ import print_function
 import os
 import logging
 
-import sys 
+import sys
 if sys.version_info[0] == 2:
 	PYTHON_VERSION = 2 
 elif sys.version_info[0] == 3:
-	PYTHON_VERSION = 3 
+	PYTHON_VERSION = 3
 else:
 	raise Exception("Unknown Python version")
 
@@ -41,22 +41,28 @@ class ExitOnCritical(logging.StreamHandler):
 					need_emit = True
 			raise Exception(record.msg)
 
-def plog(path = False):
+def plog(path=None):
 	formatter = logging.Formatter('[%(process)d %(levelname)s] %(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 	log = logging.getLogger()
-	if log.handlers:
-		return log
 
-	log.setLevel(logging.INFO)
-	# console_handler = logging.StreamHandler()
-	console_handler = ExitOnCritical()
-	console_handler.setFormatter(formatter)
-	log.addHandler(console_handler)
+	if not log.handlers:
+		log.setLevel(logging.INFO)
+		# console_handler = logging.StreamHandler()
+		console_handler = ExitOnCritical()
+		console_handler.setFormatter(formatter)
+		log.addHandler(console_handler)
 
 	if path:
-		fileHandler = logging.FileHandler(path, mode='w')
-		fileHandler.setFormatter(formatter)
-		log.addHandler(fileHandler)
+		has_path_logger = False
+		for logger in log.handlers:
+			if isinstance(logger, logging.FileHandler) and logger.baseFilename == path:
+				has_path_logger = True
+				break
+
+		if not has_path_logger:
+			fileHandler = logging.FileHandler(path, mode='w')
+			fileHandler.setFormatter(formatter)
+			log.addHandler(fileHandler)
 	return log
 
 def which(program):
