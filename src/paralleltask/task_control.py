@@ -232,7 +232,9 @@ class Run(object):
 
 	def _parse_mem(self, mem):
 
-		def _set_lsf_mem():
+		if self.job_type == 'slurm' and '--mem-per-cpu' in self._submit:
+			return int(parse_num_unit(mem, 1024)/1000000/int(self.cpu)) + 1
+		if self.job_type == 'lsf' and 'mem' in self._submit:
 			unit = 'M'
 			unit_cfg_fpath = os.getenv('LSF_ENVDIR') + "/lsf.conf"
 			if os.path.exists(unit_cfg_fpath):
@@ -241,11 +243,6 @@ class Run(object):
 					if g:
 						unit = g.group(1)
 			return parse_num_unit(mem) / parse_num_unit("1%s" % (unit))
-
-		if self.job_type == 'slurm' and '--mem-per-cpu' in self._submit:
-			return int(parse_num_unit(mem, 1024)/1000000/int(self.cpu)) + 1
-		if self.job_type == 'lsf' and 'mem' in self._submit:
-			return int(self._set_lsf_mem())
 		return mem
 
 	def submit(self, job):
