@@ -259,6 +259,10 @@ class Run(object):
 		return self.run(cmd)
 
 	def check_alive(self, job):#Here we may need to parase job status
+		if job.is_finished():
+			return False
+		
+		# if this job has errors, `is_finished()` will always return `False`, so we need to check further.
 		assert 'job_id' in self._check_alive
 		cmd = self._check_alive.format(job_id=job.id)
 		returncode, stdout, stderr = self.run(cmd, check=False)
