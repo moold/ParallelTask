@@ -44,7 +44,7 @@ def set_workdir(args):
 
 def run(args):
 	global log
-	log_file = 'pid' + str(os.getpid()) + '.' + args[0].log
+	log_file = args[0].log if '/' in args[0].log else 'pid' + str(os.getpid()) + '.' + args[0].log
 	log = plog(log_file)
 	
 	log.info('start...')
@@ -117,7 +117,7 @@ exmples:
 	parser.add_argument('--job_prefix',metavar = 'STR',default = 'subtask',
 			help = 'the prefix tag for subtasks.')
 	parser.add_argument ('--log',metavar = 'FILE',type = str, default = 'log.info',
-		help = 'log file')
+		help = 'log file, set `/dev/null` to disable output to a file.')
 
 	parser.add_argument('--shell', metavar = 'STR', type = str, default = '/bin/sh', 
 			help = 'the shell command language.')
