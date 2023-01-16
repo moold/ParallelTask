@@ -137,9 +137,9 @@ class Task(object):
 			subtask_finish_lable = subtask_dir + '/' + subtask_file + '.done'
 			if not os.path.exists(subtask_finish_lable):
 				pmkdir(subtask_dir)
-				subtask = "#!%s\nset -xve\nhostname\ncd %s\n" % (self.shell, subtask_dir)
+				subtask = "#!%s\nset -xveo pipefail\nhostname\ncd %s\n" % (self.shell, subtask_dir)
 				for task in tasks[i]:
-					subtask += time + task + '\n'
+					subtask += "( %s %s )\n" % (time, task)
 				subtask += "touch %s/%s.done\n" % (subtask_dir, subtask_file)
 				with open(subtask_dir + '/' + subtask_file, 'w') as OUT:
 					print (subtask, file=OUT)
@@ -259,6 +259,10 @@ class Run(object):
 		return self.run(cmd)
 
 	def check_alive(self, job):#Here we may need to parase job status
+		if job.is_finished():
+			return False
+		
+		# if this job has errors, `is_finished()` will always return `False`, so we need to check further.
 		assert 'job_id' in self._check_alive
 		cmd = self._check_alive.format(job_id=job.id)
 		returncode, stdout, stderr = self.run(cmd, check=False)

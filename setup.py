@@ -5,7 +5,7 @@ with open("README.md") as fh:
 
 setuptools.setup(
     name="Paralleltask",
-    version="0.1.1",
+    version="0.2.0",
     author="Hu Jiang",
     author_email="mooldhu@gmail.com",
     description="A simple and lightweight parallel task engine",
