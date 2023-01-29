@@ -119,7 +119,7 @@ exmples:
 	parser.add_argument ('--log',metavar = 'FILE',type = str, default = 'log.info',
 		help = 'log file, set `/dev/null` to disable output to a file.')
 
-	parser.add_argument('--shell', metavar = 'STR', type = str, default = '/bin/sh', 
+	parser.add_argument('--shell', metavar = 'STR', type = str, default = '/bin/bash', 
 			help = 'the shell command language.')
 	parser.add_argument('--submit', metavar = '"STR"', type = str, default=argparse.SUPPRESS,
 			help = 'command to submit a job, overwrite --config, read from --config by default.')
