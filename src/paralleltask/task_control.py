@@ -39,7 +39,7 @@ class Job(object):
 class Task(object):
 
 	def __init__(self, path, group=1, max_subtask=300, job_prefix='subjob', dir_prefix='work', \
-			shell='/bin/sh', convert_path=True):
+			shell='/bin/bash', convert_path=True):
 		self.job = Job(path)
 		self.group = group
 		self.max_subtask = max_subtask
@@ -181,7 +181,7 @@ class Run(object):
 
 	instances = []
 
-	def __init__(self, jobs, max_parallel_job=5, shell='/bin/sh', job_type='local', interval_time=30, cpu=1, mem=None, \
+	def __init__(self, jobs, max_parallel_job=5, shell='/bin/bash', job_type='local', interval_time=30, cpu=1, mem=None, \
 			cfg_file=None, submit=None, kill=None, check_alive=None, job_id_regex=None):
 		self.jobs = jobs
 		self.unfinished_jobs = []
