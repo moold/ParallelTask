@@ -80,6 +80,8 @@ class Task(object):
 							paramters = lines[i].split(">")
 							lines[i] = paramters[0] + '>' + os.path.abspath(paramters[1]) if \
 								paramters[1] and len(paramters) == 2 else lines[i]
+						elif lines[i].startswith('|'):
+							lines[i] = '|' + os.path.abspath(os.path.expanduser(lines[i][1:]))
 						else:
 							lines[i] = os.path.abspath(os.path.expanduser(lines[i]))
 				tasks.append(" ".join(lines))
