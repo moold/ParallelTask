@@ -369,6 +369,8 @@ class Local(Run):
 		subids = []
 		for i in range(len(self.unfinished_jobs)):
 			job = self.unfinished_jobs[i]
+			if job.is_finished():
+				continue
 			newpid = os.fork()
 			if newpid == 0:
 				self.submit(job)
@@ -401,9 +403,10 @@ class Cluster(Run):
 		while j < len(self.unfinished_jobs):
 			job = self.unfinished_jobs[j]
 			if j < self.max_parallel_job or self.check_running < self.max_parallel_job:
-				self.submit(job)
-				self.running_jobs.append(job)
-				log.info('Submitted jobID:[' + job.id + '] jobCmd:['  + job.path + '] in the ' + self.job_type + '_cycle.')
+				if not job.is_finished():
+					self.submit(job)
+					self.running_jobs.append(job)
+					log.info('Submitted jobID:[' + job.id + '] jobCmd:['  + job.path + '] in the ' + self.job_type + '_cycle.')
 				j += 1
 			else:
 				time.sleep(self.interval_time)
@@ -433,15 +436,16 @@ class Drmaa(Run):
 		jt.jobEnvironment = os.environ.copy()
 		jt.nativeSpecification = self.option
 		while j < len(self.unfinished_jobs):
+			job = self.unfinished_jobs[j]
 			if j < self.max_parallel_job or self.check_running < self.max_parallel_job:
-				job = self.unfinished_jobs[j]
-				jt.remoteCommand = job.path
-				jt.outputPath = ':%s' % job.out
-				jt.errorPath = ':%s' % job.err
-				jt.workingDirectory = os.path.dirname(job.path)
-				job.id = self.session.runJob(jt)
-				self.running_jobs.append(job)
-				log.info('Submitted jobID:[' + job.id + '] jobCmd:['  + job.path + '] in the ' + self.job_type + '_cycle.')
+				if not job.is_finished():
+					jt.remoteCommand = job.path
+					jt.outputPath = ':%s' % job.out
+					jt.errorPath = ':%s' % job.err
+					jt.workingDirectory = os.path.dirname(job.path)
+					job.id = self.session.runJob(jt)
+					self.running_jobs.append(job)
+					log.info('Submitted jobID:[' + job.id + '] jobCmd:['  + job.path + '] in the ' + self.job_type + '_cycle.')
 				j += 1
 			else:
 				time.sleep(self.interval_time)
